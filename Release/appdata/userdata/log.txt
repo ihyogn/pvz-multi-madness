@@ -1,0 +1,198 @@
+Started Thu Dec 25 00:30:36 2025
+
+session id: 1766615435
+3d recommended: 0
+3d supported: 0
+LOADING:Long reanim 'reanim\Zombie_boss.reanim' 141 ms on Game Loading
+LOADING:Long reanim 'reanim\SelectorScreen.reanim' 159 ms on Game Loading
+LOADING:Long reanim 'reanim\TreeOfWisdom.reanim' 157 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main.reanim' 310 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main2.reanim' 250 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main3.reanim' 122 ms on Game Loading
+First Draw Time: 3859 ms
+LOADED: 'LoaderBar' 99 ms on Game Loading
+LOADED: 'DelayLoad_QuickPlay' 92 ms on Game Selector
+Selector cheat key 'u'
+Selector cheat key 'u'
+Started Thu Dec 25 00:31:58 2025
+
+session id: 1766615518
+3d recommended: 0
+3d supported: 0
+Started Thu Dec 25 00:34:28 2025
+
+session id: 1766615668
+3d recommended: 0
+3d supported: 0
+Started Thu Dec 25 00:34:38 2025
+
+session id: 1766615677
+3d recommended: 0
+3d supported: 0
+Started Thu Dec 25 00:36:25 2025
+
+session id: 1766615784
+3d recommended: 0
+3d supported: 0
+Started Thu Dec 25 00:36:32 2025
+
+session id: 1766615791
+3d recommended: 0
+3d supported: 0
+Started Thu Dec 25 00:40:46 2025
+
+session id: 1766616046
+3d recommended: 0
+3d supported: 0
+Started Thu Dec 25 00:41:10 2025
+
+session id: 1766616070
+3d recommended: 0
+3d supported: 0
+Started Thu Dec 25 00:44:09 2025
+
+session id: 1766616249
+3d recommended: 0
+3d supported: 0
+LOADING:Long reanim 'reanim\Zombie_boss.reanim' 149 ms on Game Loading
+LOADING:Long reanim 'reanim\SelectorScreen.reanim' 157 ms on Game Loading
+LOADING:Long reanim 'reanim\TreeOfWisdom.reanim' 154 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main.reanim' 301 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main2.reanim' 252 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main3.reanim' 122 ms on Game Loading
+First Draw Time: 3984 ms
+LOADED: 'LoaderBar' 68 ms on Game Loading
+LOADED: 'DelayLoad_QuickPlay' 92 ms on Game Selector
+Selector cheat key 'u'
+Selector cheat key 'u'
+Started Thu Dec 25 00:45:02 2025
+
+session id: 1766616302
+3d recommended: 0
+3d supported: 0
+LOADING:Long reanim 'reanim\Zombie_boss.reanim' 137 ms on Game Loading
+LOADING:Long reanim 'reanim\SelectorScreen.reanim' 153 ms on Game Loading
+LOADING:Long reanim 'reanim\TreeOfWisdom.reanim' 155 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main.reanim' 305 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main2.reanim' 256 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main3.reanim' 122 ms on Game Loading
+First Draw Time: 7922 ms
+LOADED: 'LoaderBar' 91 ms on Game Loading
+LOADED: 'DelayLoad_QuickPlay' 92 ms on Game Selector
+Selector cheat key 'u'
+Selector cheat key 'u'
+LOADED: 'DelayLoad_ChallengeScreen' 91 ms on Challenge Screen
+Started Thu Dec 25 00:45:53 2025
+
+session id: 1766616352
+3d recommended: 0
+3d supported: 0
+LOADING:Long reanim 'reanim\Zombie_boss.reanim' 149 ms on Game Loading
+LOADING:Long reanim 'reanim\CrazyDave.reanim' 108 ms on Game Loading
+LOADING:Long reanim 'reanim\SelectorScreen.reanim' 189 ms on Game Loading
+LOADING:Long reanim 'reanim\TreeOfWisdom.reanim' 162 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main.reanim' 314 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main2.reanim' 256 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main3.reanim' 121 ms on Game Loading
+First Draw Time: 4203 ms
+LOADED: 'LoaderBar' 68 ms on Game Loading
+LOADED: 'DelayLoad_QuickPlay' 91 ms on Game Selector
+LOADED: 'DelayLoad_Background1' 132 ms on Game Selector
+LOADED: 'DelayLoad_BackgroundUnsodded' 140 ms on Game Selector
+Started Thu Dec 25 00:49:04 2025
+
+session id: 1766616544
+3d recommended: 0
+3d supported: 0
+LOADING:Long reanim 'reanim\Zombie_boss.reanim' 128 ms on Game Loading
+LOADING:Long reanim 'reanim\SelectorScreen.reanim' 149 ms on Game Loading
+LOADING:Long reanim 'reanim\TreeOfWisdom.reanim' 153 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main.reanim' 296 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main2.reanim' 243 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main3.reanim' 119 ms on Game Loading
+First Draw Time: 3375 ms
+LOADED: 'LoaderBar' 67 ms on Game Loading
+Started Thu Dec 25 00:49:24 2025
+
+session id: 1766616564
+3d recommended: 0
+3d supported: 0
+LOADING:Long reanim 'reanim\Zombie_boss.reanim' 134 ms on Game Loading
+LOADING:Long reanim 'reanim\SelectorScreen.reanim' 153 ms on Game Loading
+LOADING:Long reanim 'reanim\TreeOfWisdom.reanim' 158 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main.reanim' 306 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main2.reanim' 248 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main3.reanim' 120 ms on Game Loading
+First Draw Time: 3641 ms
+LOADED: 'LoaderBar' 68 ms on Game Loading
+LOADED: 'DelayLoad_Background1' 130 ms on Game Selector
+LOADED: 'DelayLoad_BackgroundUnsodded' 138 ms on Game Selector
+Started Thu Dec 25 00:51:26 2025
+
+session id: 1766616686
+3d recommended: 0
+3d supported: 0
+LOADING:Long reanim 'reanim\Zombie_boss.reanim' 158 ms on Game Loading
+LOADING:Long reanim 'reanim\SelectorScreen.reanim' 166 ms on Game Loading
+LOADING:Long reanim 'reanim\TreeOfWisdom.reanim' 171 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main.reanim' 324 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main2.reanim' 259 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main3.reanim' 126 ms on Game Loading
+First Draw Time: 4047 ms
+LOADED: 'LoaderBar' 72 ms on Game Loading
+LOADED: 'DelayLoad_ChallengeScreen' 94 ms on Challenge Screen
+LOADED: 'DelayLoad_Background2' 129 ms on Challenge Screen
+Board cheat key ' '
+LOADED: 'DelayLoad_QuickPlay' 92 ms on [BEGHOULED_TWIST]
+LOADED: 'DelayLoad_AwardScreen' 40 ms on Game Selector
+LOADED: 'DelayLoad_Background6' 167 ms on Game Selector
+LOADING:Long atlas 'reanim\Zombie_boss.reanim' 21 ms on Game Selector
+Board cheat key ' '
+Board cheat key ' '
+Board cheat key ' '
+Board cheat key ' '
+Board cheat key ' '
+Board cheat key ' '
+Board cheat key ' '
+Board cheat key ' '
+Board cheat key ' '
+Board cheat key ' '
+Board cheat key ' '
+Board cheat key ' '
+Board cheat key ' '
+Board cheat key ' '
+Board cheat key ' '
+Board cheat key ' '
+Board cheat key ' '
+Board cheat key ''
+LOADED: 'DelayLoad_Almanac' 176 ms on Game Selector
+Started Thu Dec 25 00:56:27 2025
+
+session id: 1766616987
+3d recommended: 0
+3d supported: 0
+LOADING:Long reanim 'reanim\Zombie_boss.reanim' 150 ms on Game Loading
+LOADING:Long reanim 'reanim\SelectorScreen.reanim' 169 ms on Game Loading
+LOADING:Long reanim 'reanim\TreeOfWisdom.reanim' 175 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main.reanim' 321 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main2.reanim' 261 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main3.reanim' 129 ms on Game Loading
+First Draw Time: 4204 ms
+LOADED: 'LoaderBar' 74 ms on Game Loading
+LOADED: 'DelayLoad_Background1' 129 ms on Game Selector
+LOADED: 'DelayLoad_BackgroundUnsodded' 135 ms on Game Selector
+LOADED: 'DelayLoad_Almanac' 166 ms on F15724812
+LOADING:Long atlas 'reanim\Zombie_boss.reanim' 21 ms on F15720312
+Started Thu Dec 25 01:12:59 2025
+
+session id: 1766617978
+3d recommended: 0
+3d supported: 0
+LOADING:Long reanim 'reanim\Zombie_boss.reanim' 128 ms on Game Loading
+LOADING:Long reanim 'reanim\SelectorScreen.reanim' 149 ms on Game Loading
+LOADING:Long reanim 'reanim\TreeOfWisdom.reanim' 151 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main.reanim' 294 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main2.reanim' 244 ms on Game Loading
+LOADING:Long reanim 'reanim\Credits_Main3.reanim' 119 ms on Game Loading
+First Draw Time: 3391 ms
+LOADED: 'LoaderBar' 68 ms on Game Loading

@@ -1,0 +1,27 @@
+Exception: Access Violation (code 0xc0000005) at address 0073F9A1 in thread 36BC
+Module: LawnProject.exe
+Logical Address: 0001:0009E9A1
+
+00D1F324 0073F9A1 Zombie::ReanimReenableClipping+31
+Params: 17F60BC0 006C2439 E33432F6 17F6092C
+
+00D1F32C 00753025 Zombie::WalkIntoHouse+25
+Params: E33432F6 17F6092C 17F60908 00000000
+
+
+EAX:00000001 EBX:00D1F3D4 ECX:00000000 EDX:00000000 ESI:09A00960 EDI:17F58D38
+EIP:0073F9A1 ESP:00D1F324  EBP:00D1F3C8
+CS:0023 SS:002B DS:002B ES:002B FS:0053 GS:002B
+Flags:00010202
+
+Windows Ver: NT 6.2  Build 9200
+DDraw Ver: 
+DSound Ver: 
+
+Product: PlantsVsZombies
+Version: 1.0.0.1
+Time Loaded: 00:01:29
+Fullscreen: No
+Primary ThreadId: 36BC
+Times Played: 0
+
