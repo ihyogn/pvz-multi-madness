@@ -965,37 +965,59 @@ void LawnApp::DoNetworkHostDialog()
 	if (!mNetworkManager)
 		return;
 	
-	char ipBuffer[256];
-	if (mNetworkManager->GetHostIPAddress(ipBuffer, sizeof(ipBuffer)))
+	char localIP[256];
+	char externalIP[256];
+	bool hasLocal = mNetworkManager->GetHostIPAddress(localIP, sizeof(localIP));
+	bool hasExternal = mNetworkManager->GetExternalIPAddress(externalIP, sizeof(externalIP));
+	
+	SexyString message;
+	if (hasLocal && hasExternal)
 	{
-		SexyString ipStr = ipBuffer;
-		SexyString message = _S("Starting as host.\nYour IP: ") + ipStr + _S("\nPort: 7777\n\nWaiting for players to connect...");
-		DoDialog(
-			Dialogs::DIALOG_NETWORK_HOST,
-			true,
-			_S("Hosting Game"),
-			message,
-			_S("Start Game"),
-			Dialog::BUTTONS_FOOTER
-		);
-		
-		// Start hosting
-		if (mNetworkManager->StartHost(7777))
+		// Check if local IP is actually localhost
+		bool isLocalhost = (strcmp(localIP, "127.0.0.1") == 0);
+		if (isLocalhost)
 		{
-			// Host started successfully - show zombie selection dialog
-			DoZombieSelectionDialog();
+			message = _S("WARNING: Only localhost detected!\n\nYour network IP could not be found.\nThis means connections will ONLY work from the same PC.\n\nTo fix:\n- Make sure you're connected to a network\n- Check Windows Firewall settings\n- Try disabling firewall temporarily to test\n\nPort: 7777");
+		}
+		else
+		{
+			message = _S("Starting as host.\n\nLocal IP (same network): ") + SexyString(localIP) + 
+			          _S("\nPort: 7777\n\nFor LOCAL network (same router):\n- Use the Local IP above\n- NO port forwarding needed\n- Windows Firewall MUST allow the connection\n\nFor INTERNET play:\n- External IP: ") + SexyString(externalIP) + 
+			          _S("\n- Forward port 7777 in your router\n- Give your friend the External IP\n\nIMPORTANT: If connection fails, check Windows Firewall!");
+		}
+	}
+	else if (hasLocal)
+	{
+		bool isLocalhost = (strcmp(localIP, "127.0.0.1") == 0);
+		if (isLocalhost)
+		{
+			message = _S("WARNING: Only localhost detected!\n\nYour network IP could not be found.\nConnections will ONLY work from the same PC.\n\nPort: 7777\n\nCheck Windows Firewall and network connection.");
+		}
+		else
+		{
+			message = _S("Starting as host.\n\nLocal IP: ") + SexyString(localIP) + 
+			          _S("\nPort: 7777\n\nFor LOCAL network (same router):\n- Use the IP above\n- NO port forwarding needed\n- Windows Firewall MUST allow the connection\n\nFor INTERNET play:\n- Forward port 7777 in your router\n- Get your external IP from whatismyip.com\n\nIMPORTANT: If connection fails, check Windows Firewall!");
 		}
 	}
 	else
 	{
-		DoDialog(
-			Dialogs::DIALOG_MESSAGE,
-			true,
-			_S("Error"),
-			_S("Failed to get IP address."),
-			_S("OK"),
-			Dialog::BUTTONS_FOOTER
-		);
+		message = _S("Starting as host.\nPort: 7777\n\nWARNING: Could not detect network IP!\n\nCheck:\n- Windows Firewall settings\n- Network connection\n- Try disabling firewall to test");
+	}
+	
+	DoDialog(
+		Dialogs::DIALOG_NETWORK_HOST,
+		true,
+		_S("Hosting Game"),
+		message,
+		_S("Start Game"),
+		Dialog::BUTTONS_FOOTER
+	);
+	
+	// Start hosting
+	if (mNetworkManager->StartHost(7777))
+	{
+		// Host started successfully - show zombie selection dialog
+		DoZombieSelectionDialog();
 	}
 }
 

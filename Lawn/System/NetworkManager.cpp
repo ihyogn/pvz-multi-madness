@@ -5,7 +5,9 @@
 #endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <iphlpapi.h>
 #pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "iphlpapi.lib")
 #endif
 
 #include "NetworkManager.h"
@@ -22,8 +24,10 @@
 #else
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <ifaddrs.h>
 #include <sys/select.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -96,45 +100,80 @@ bool NetworkManager::StartHost(int thePort)
     SetZombieSelected(ZOMBIE_FOOTBALL, true);
     SetZombieSelected(ZOMBIE_DANCER, true);
     
-    // Create listening socket
-    SOCKET_TYPE listenSock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (listenSock == INVALID_SOCKET)
+    // Following GeeksforGeeks socket programming guide:
+    // https://www.geeksforgeeks.org/cpp/socket-programming-in-cpp/
+    
+    // Step 1: Create server socket (TCP stream socket)
+    SOCKET_TYPE serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSocket == INVALID_SOCKET)
         return false;
     
-    // Set socket options
+    // Set socket options for reliability
     int reuse = 1;
-    setsockopt(listenSock, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse));
+    setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse));
+    int keepAlive = 1;
+    setsockopt(serverSocket, SOL_SOCKET, SO_KEEPALIVE, (const char*)&keepAlive, sizeof(keepAlive));
+    int nodelay = 1;
+    setsockopt(serverSocket, IPPROTO_TCP, TCP_NODELAY, (const char*)&nodelay, sizeof(nodelay));
     
-    // Bind socket - INADDR_ANY allows connections from localhost and network
-    sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;  // Accept connections from localhost (127.0.0.1) and network
-    addr.sin_port = htons(thePort);
+    // Step 2: Define server address structure
+    sockaddr_in serverAddress;
+    memset(&serverAddress, 0, sizeof(serverAddress));
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(thePort);
+    serverAddress.sin_addr.s_addr = INADDR_ANY;  // Accept connections on any IP (0.0.0.0)
     
-    if (bind(listenSock, (sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR)
+    // Explicitly allow connections from any interface (important for network connections)
+    // INADDR_ANY (0.0.0.0) means bind to all available interfaces
+    int optval = 1;
+    setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&optval, sizeof(optval));
+    
+    // Step 3: Bind socket to address - this binds to ALL network interfaces
+    if (bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == SOCKET_ERROR)
     {
-        CLOSE_SOCKET(listenSock);
+#ifdef _WIN32
+        int error = WSAGetLastError();
+        // Common errors:
+        // WSAEADDRINUSE (10048) = Port already in use
+        // WSAEACCES (10013) = Permission denied (firewall/antivirus blocking)
+        // WSAENOTSOCK (10038) = Invalid socket
+#endif
+        CLOSE_SOCKET(serverSocket);
+        mIsHost = false;
+        mIsConnected = false;
         return false;
     }
     
-    // Listen for connections
-    if (listen(listenSock, 2) == SOCKET_ERROR)
+    // Verify binding worked by checking the bound address
+    sockaddr_in boundAddr;
+    memset(&boundAddr, 0, sizeof(boundAddr));
+#ifdef _WIN32
+    int addrLen = sizeof(boundAddr);
+#else
+    socklen_t addrLen = sizeof(boundAddr);
+#endif
+    if (getsockname(serverSocket, (struct sockaddr*)&boundAddr, &addrLen) == 0)
     {
-        CLOSE_SOCKET(listenSock);
+        // Socket is bound - should be 0.0.0.0 (INADDR_ANY) which accepts all connections
+    }
+    
+    // Step 4: Listen for incoming connections
+    if (listen(serverSocket, 5) == SOCKET_ERROR)  // Backlog of 5 like guide
+    {
+        CLOSE_SOCKET(serverSocket);
         return false;
     }
     
-    // Set socket to non-blocking
+    // Set socket to non-blocking for game responsiveness
 #ifdef _WIN32
     u_long mode = 1;
-    ioctlsocket(listenSock, FIONBIO, &mode);
+    ioctlsocket(serverSocket, FIONBIO, &mode);
 #else
-    int flags = fcntl(listenSock, F_GETFL, 0);
-    fcntl(listenSock, F_SETFL, flags | O_NONBLOCK);
+    int flags = fcntl(serverSocket, F_GETFL, 0);
+    fcntl(serverSocket, F_SETFL, flags | O_NONBLOCK);
 #endif
     
-    mListenSocket = (void*)listenSock;
+    mListenSocket = (void*)serverSocket;
     return true;
 }
 
@@ -168,28 +207,45 @@ void NetworkManager::UpdateHost()
     // Accept new connections
     if (mPlayerCount < 3)
     {
+        // Step 5: Accept client connection (following guide pattern)
         sockaddr_in clientAddr;
 #ifdef _WIN32
         int addrLen = sizeof(clientAddr);
 #else
         socklen_t addrLen = sizeof(clientAddr);
 #endif
-        SOCKET_TYPE clientSock = accept((SOCKET_TYPE)mListenSocket, (sockaddr*)&clientAddr, &addrLen);
+        SOCKET_TYPE clientSocket = accept((SOCKET_TYPE)mListenSocket, (struct sockaddr*)&clientAddr, &addrLen);
         
-        if (clientSock != INVALID_SOCKET)
+        if (clientSocket != INVALID_SOCKET)
         {
-            // Set to non-blocking
+            // Log client connection info for debugging
+            char clientIP[INET_ADDRSTRLEN];
+            const char* clientIPStr = inet_ntoa(clientAddr.sin_addr);
+            if (clientIPStr)
+            {
+                strncpy(clientIP, clientIPStr, sizeof(clientIP) - 1);
+                clientIP[sizeof(clientIP) - 1] = '\0';
+                // Connection accepted from: clientIP (can be localhost or network IP)
+            }
+            
+            // Set TCP socket options for accepted connections
+            int keepAlive = 1;
+            setsockopt(clientSocket, SOL_SOCKET, SO_KEEPALIVE, (const char*)&keepAlive, sizeof(keepAlive));
+            int nodelay = 1;
+            setsockopt(clientSocket, IPPROTO_TCP, TCP_NODELAY, (const char*)&nodelay, sizeof(nodelay));
+            
+            // Set to non-blocking for game responsiveness
 #ifdef _WIN32
             u_long mode = 1;
-            ioctlsocket(clientSock, FIONBIO, &mode);
+            ioctlsocket(clientSocket, FIONBIO, &mode);
 #else
-            int flags = fcntl(clientSock, F_GETFL, 0);
-            fcntl(clientSock, F_SETFL, flags | O_NONBLOCK);
+            int flags = fcntl(clientSocket, F_GETFL, 0);
+            fcntl(clientSocket, F_SETFL, flags | O_NONBLOCK);
 #endif
             
             // Assign player ID and role
             int playerSlot = mPlayerCount - 1;
-            mClientSockets[playerSlot] = (void*)clientSock;
+            mClientSockets[playerSlot] = (void*)clientSocket;
             mPlayerCount++;
             
             // Send connection accepted message with player ID and role
@@ -230,51 +286,194 @@ bool NetworkManager::GetHostIPAddress(char* theBuffer, int theBufferSize)
     if (!theBuffer || theBufferSize < 16)
         return false;
     
-    // Try to get local IP address
+    // Try to get actual network IP address (not localhost)
 #ifdef _WIN32
+    // Use GetAdaptersAddresses for better network interface detection
+    ULONG bufferSize = 0;
+    GetAdaptersAddresses(AF_INET, GAA_FLAG_INCLUDE_PREFIX, nullptr, nullptr, &bufferSize);
+    if (bufferSize > 0)
+    {
+        PIP_ADAPTER_ADDRESSES adapterAddresses = (PIP_ADAPTER_ADDRESSES)malloc(bufferSize);
+        if (adapterAddresses)
+        {
+            if (GetAdaptersAddresses(AF_INET, GAA_FLAG_INCLUDE_PREFIX, nullptr, adapterAddresses, &bufferSize) == ERROR_SUCCESS)
+            {
+                PIP_ADAPTER_ADDRESSES adapter = adapterAddresses;
+                while (adapter)
+                {
+                    // Skip loopback and non-operational adapters
+                    if (adapter->IfType != IF_TYPE_SOFTWARE_LOOPBACK && 
+                        adapter->OperStatus == IfOperStatusUp &&
+                        adapter->FirstUnicastAddress)
+                    {
+                        // Get the first IPv4 address
+                        PIP_ADAPTER_UNICAST_ADDRESS unicast = adapter->FirstUnicastAddress;
+                        while (unicast)
+                        {
+                            if (unicast->Address.lpSockaddr->sa_family == AF_INET)
+                            {
+                                sockaddr_in* sin = (sockaddr_in*)unicast->Address.lpSockaddr;
+                                const char* ip = inet_ntoa(sin->sin_addr);
+                                if (ip && strcmp(ip, "127.0.0.1") != 0)
+                                {
+                                    strncpy(theBuffer, ip, theBufferSize - 1);
+                                    theBuffer[theBufferSize - 1] = '\0';
+                                    free(adapterAddresses);
+                                    return true;
+                                }
+                            }
+                            unicast = unicast->Next;
+                        }
+                    }
+                    adapter = adapter->Next;
+                }
+            }
+            free(adapterAddresses);
+        }
+    }
+    
+    // Fallback: try hostname resolution
     char hostname[256];
     if (gethostname(hostname, sizeof(hostname)) == 0)
     {
         struct hostent* host = gethostbyname(hostname);
-        if (host && host->h_addr_list[0])
+        if (host && host->h_addr_list)
         {
-            struct in_addr* addr = (struct in_addr*)host->h_addr_list[0];
-            const char* ip = inet_ntoa(*addr);
-            if (ip)
+            // Try all addresses, skip localhost
+            for (int i = 0; host->h_addr_list[i] != nullptr; i++)
             {
-                strncpy(theBuffer, ip, theBufferSize - 1);
-                theBuffer[theBufferSize - 1] = '\0';
-                return true;
+                struct in_addr* addr = (struct in_addr*)host->h_addr_list[i];
+                const char* ip = inet_ntoa(*addr);
+                if (ip && strcmp(ip, "127.0.0.1") != 0)
+                {
+                    strncpy(theBuffer, ip, theBufferSize - 1);
+                    theBuffer[theBufferSize - 1] = '\0';
+                    return true;
+                }
             }
         }
     }
-    // Fallback to localhost
+    
+    // Last resort: return localhost
     strncpy(theBuffer, "127.0.0.1", theBufferSize - 1);
     theBuffer[theBufferSize - 1] = '\0';
     return true;
 #else
-    // On Unix/Linux, try to get local IP
+    // On Unix/Linux, use getifaddrs for better interface detection
+    struct ifaddrs* ifaddr = nullptr;
+    if (getifaddrs(&ifaddr) == 0)
+    {
+        for (struct ifaddrs* ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next)
+        {
+            if (ifa->ifa_addr == nullptr)
+                continue;
+            
+            // Only look at IPv4 addresses
+            if (ifa->ifa_addr->sa_family == AF_INET)
+            {
+                // Skip loopback interface
+                if (strcmp(ifa->ifa_name, "lo") == 0)
+                    continue;
+                
+                sockaddr_in* sin = (sockaddr_in*)ifa->ifa_addr;
+                const char* ip = inet_ntoa(sin->sin_addr);
+                if (ip && strcmp(ip, "127.0.0.1") != 0)
+                {
+                    strncpy(theBuffer, ip, theBufferSize - 1);
+                    theBuffer[theBufferSize - 1] = '\0';
+                    freeifaddrs(ifaddr);
+                    return true;
+                }
+            }
+        }
+        freeifaddrs(ifaddr);
+    }
+    
+    // Fallback: try hostname resolution
     char hostname[256];
     if (gethostname(hostname, sizeof(hostname)) == 0)
     {
         struct hostent* host = gethostbyname(hostname);
-        if (host && host->h_addr_list[0])
+        if (host && host->h_addr_list)
         {
-            struct in_addr* addr = (struct in_addr*)host->h_addr_list[0];
-            const char* ip = inet_ntoa(*addr);
-            if (ip)
+            // Try all addresses, skip localhost
+            for (int i = 0; host->h_addr_list[i] != nullptr; i++)
             {
-                strncpy(theBuffer, ip, theBufferSize - 1);
-                theBuffer[theBufferSize - 1] = '\0';
-                return true;
+                struct in_addr* addr = (struct in_addr*)host->h_addr_list[i];
+                const char* ip = inet_ntoa(*addr);
+                if (ip && strcmp(ip, "127.0.0.1") != 0)
+                {
+                    strncpy(theBuffer, ip, theBufferSize - 1);
+                    theBuffer[theBufferSize - 1] = '\0';
+                    return true;
+                }
             }
         }
     }
-    // Fallback to localhost
+    
+    // Last resort: return localhost
     strncpy(theBuffer, "127.0.0.1", theBufferSize - 1);
     theBuffer[theBufferSize - 1] = '\0';
     return true;
 #endif
+}
+
+bool NetworkManager::GetExternalIPAddress(char* theBuffer, int theBufferSize)
+{
+    if (!theBuffer || theBufferSize < 16)
+        return false;
+    
+    // Try to get external IP by connecting to a public service
+    // This is a simple approach - in production you might want to use a dedicated service
+    SOCKET_TYPE sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == INVALID_SOCKET)
+    {
+        strncpy(theBuffer, "Unknown", theBufferSize - 1);
+        theBuffer[theBufferSize - 1] = '\0';
+        return false;
+    }
+    
+    // Connect to a public DNS server to determine external IP
+    // Using Google's DNS (8.8.8.8) - we don't actually need to connect, just get local socket address
+    sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = inet_addr("8.8.8.8");
+    addr.sin_port = htons(53);
+    
+    // Set to non-blocking
+#ifdef _WIN32
+    u_long mode = 1;
+    ioctlsocket(sock, FIONBIO, &mode);
+#else
+    int flags = fcntl(sock, F_GETFL, 0);
+    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+#endif
+    
+    connect(sock, (sockaddr*)&addr, sizeof(addr));
+    
+    // Get the local address that would be used for this connection
+    sockaddr_in localAddr;
+    memset(&localAddr, 0, sizeof(localAddr));
+#ifdef _WIN32
+    int addrLen = sizeof(localAddr);
+#else
+    socklen_t addrLen = sizeof(localAddr);
+#endif
+    getsockname(sock, (sockaddr*)&localAddr, &addrLen);
+    
+    CLOSE_SOCKET(sock);
+    
+    const char* ip = inet_ntoa(localAddr.sin_addr);
+    if (ip && strcmp(ip, "0.0.0.0") != 0)
+    {
+        strncpy(theBuffer, ip, theBufferSize - 1);
+        theBuffer[theBufferSize - 1] = '\0';
+        return true;
+    }
+    
+    // Fallback: return local IP
+    return GetHostIPAddress(theBuffer, theBufferSize);
 }
 
 bool NetworkManager::ConnectToHost(const char* theHostIP, int thePort)
@@ -282,145 +481,142 @@ bool NetworkManager::ConnectToHost(const char* theHostIP, int thePort)
     if (mIsConnected || mIsHost)
         return false;
     
-    SOCKET_TYPE sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == INVALID_SOCKET)
+    // Following GeeksforGeeks socket programming guide:
+    // https://www.geeksforgeeks.org/cpp/socket-programming-in-cpp/
+    
+    // Step 1: Create client socket (TCP stream socket)
+    SOCKET_TYPE clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (clientSocket == INVALID_SOCKET)
         return false;
     
-    // Set to non-blocking BEFORE connect (required for proper network connection handling)
-#ifdef _WIN32
-    u_long mode = 1;
-    if (ioctlsocket(sock, FIONBIO, &mode) == SOCKET_ERROR)
-    {
-        CLOSE_SOCKET(sock);
-        return false;
-    }
-#else
-    int flags = fcntl(sock, F_GETFL, 0);
-    if (fcntl(sock, F_SETFL, flags | O_NONBLOCK) == -1)
-    {
-        CLOSE_SOCKET(sock);
-        return false;
-    }
-#endif
+    // Step 2: Define server address structure
+    sockaddr_in serverAddress;
+    memset(&serverAddress, 0, sizeof(serverAddress));
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(thePort);
     
-    sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(thePort);
-    
-    // Support both IP addresses and hostnames (including "localhost")
-    if (strcmp(theHostIP, "localhost") == 0)
+    // Resolve IP address
+    if (strcmp(theHostIP, "localhost") == 0 || strcmp(theHostIP, "127.0.0.1") == 0)
     {
-        addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+        serverAddress.sin_addr.s_addr = inet_addr("127.0.0.1");
     }
     else
     {
-        // Try to convert IP address directly first
-        addr.sin_addr.s_addr = inet_addr(theHostIP);
-        if (addr.sin_addr.s_addr == INADDR_NONE)
+        // Try direct IP conversion first
+        serverAddress.sin_addr.s_addr = inet_addr(theHostIP);
+        if (serverAddress.sin_addr.s_addr == INADDR_NONE)
         {
-            // If that failed, try hostname resolution using getaddrinfo for better network support
-            struct addrinfo hints;
-            struct addrinfo* result = nullptr;
-            memset(&hints, 0, sizeof(hints));
-            hints.ai_family = AF_INET;
-            hints.ai_socktype = SOCK_STREAM;
-            
-            char portStr[16];
-            sprintf(portStr, "%d", thePort);
-            
-            if (getaddrinfo(theHostIP, portStr, &hints, &result) == 0 && result != nullptr)
+            // Fallback to hostname resolution
+            struct hostent* host = gethostbyname(theHostIP);
+            if (host == nullptr || host->h_addr_list[0] == nullptr)
             {
-                // Use the first result
-                sockaddr_in* resolvedAddr = (sockaddr_in*)result->ai_addr;
-                addr.sin_addr = resolvedAddr->sin_addr;
-                freeaddrinfo(result);
+                CLOSE_SOCKET(clientSocket);
+                return false;
             }
-            else
-            {
-                // Fallback to deprecated gethostbyname for compatibility
-                struct hostent* host = gethostbyname(theHostIP);
-                if (host == nullptr || host->h_addr_list[0] == nullptr)
-                {
-                    CLOSE_SOCKET(sock);
-                    return false;
-                }
-                memcpy(&addr.sin_addr, host->h_addr_list[0], host->h_length);
-            }
+            memcpy(&serverAddress.sin_addr, host->h_addr_list[0], host->h_length);
         }
     }
     
-    // Attempt connection (will return immediately with non-blocking socket)
-    int connectResult = connect(sock, (sockaddr*)&addr, sizeof(addr));
+    // Set TCP socket options for reliability
+    int keepAlive = 1;
+    setsockopt(clientSocket, SOL_SOCKET, SO_KEEPALIVE, (const char*)&keepAlive, sizeof(keepAlive));
+    int nodelay = 1;
+    setsockopt(clientSocket, IPPROTO_TCP, TCP_NODELAY, (const char*)&nodelay, sizeof(nodelay));
     
+    // Set socket to non-blocking for game responsiveness
+#ifdef _WIN32
+    u_long mode = 1;
+    if (ioctlsocket(clientSocket, FIONBIO, &mode) != 0)
+    {
+        CLOSE_SOCKET(clientSocket);
+        return false;
+    }
+#else
+    int flags = fcntl(clientSocket, F_GETFL, 0);
+    if (fcntl(clientSocket, F_SETFL, flags | O_NONBLOCK) == -1)
+    {
+        CLOSE_SOCKET(clientSocket);
+        return false;
+    }
+#endif
+    
+    // Step 3: Connect to server (following guide pattern)
+    int connectResult = connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
+    
+    // Check if connected immediately (can happen with localhost)
+    if (connectResult == 0)
+    {
+        mClientSocket = (void*)clientSocket;
+        mIsConnected = true;
+        ProcessNetworkMessages();
+        return true;
+    }
+    
+    // Connection in progress - wait with select() (non-blocking approach for games)
 #ifdef _WIN32
     int error = WSAGetLastError();
-    if (connectResult == SOCKET_ERROR && error != WSAEWOULDBLOCK && error != WSAEINPROGRESS)
+    if (error != WSAEWOULDBLOCK && error != WSAEINPROGRESS)
     {
-        CLOSE_SOCKET(sock);
+        CLOSE_SOCKET(clientSocket);
         return false;
     }
 #else
-    if (connectResult == SOCKET_ERROR && errno != EINPROGRESS)
+    if (errno != EINPROGRESS && errno != EAGAIN)
     {
-        CLOSE_SOCKET(sock);
+        CLOSE_SOCKET(clientSocket);
         return false;
     }
 #endif
     
-    // Wait for connection to complete using select() with timeout (5 seconds)
-    fd_set writeSet;
-    fd_set errorSet;
+    // Wait for connection with select() - 10 second timeout
+    fd_set writeSet, exceptSet;
     FD_ZERO(&writeSet);
-    FD_ZERO(&errorSet);
-    FD_SET(sock, &writeSet);
-    FD_SET(sock, &errorSet);
+    FD_ZERO(&exceptSet);
+    FD_SET(clientSocket, &writeSet);
+    FD_SET(clientSocket, &exceptSet);
     
     struct timeval timeout;
-    timeout.tv_sec = 5;
+    timeout.tv_sec = 10;
     timeout.tv_usec = 0;
     
-#ifdef _WIN32
-    int selectResult = select(0, nullptr, &writeSet, &errorSet, &timeout);
-#else
-    int selectResult = select(sock + 1, nullptr, &writeSet, &errorSet, &timeout);
-#endif
+    int nfds = (int)clientSocket + 1;
+    int selectResult = select(nfds, nullptr, &writeSet, &exceptSet, &timeout);
     
     if (selectResult <= 0)
     {
-        // Timeout or error
-        CLOSE_SOCKET(sock);
+        CLOSE_SOCKET(clientSocket);
         return false;
     }
     
-    // Check if connection succeeded
-    if (FD_ISSET(sock, &errorSet))
+    // Check for connection errors
+    if (FD_ISSET(clientSocket, &exceptSet))
     {
-        // Connection error
-        CLOSE_SOCKET(sock);
+        CLOSE_SOCKET(clientSocket);
         return false;
     }
     
-    // Verify connection is actually established
-    int socketError = 0;
-    socklen_t errorLen = sizeof(socketError);
+    // Verify connection succeeded
+    if (FD_ISSET(clientSocket, &writeSet))
+    {
+        int socketError = 0;
+        socklen_t len = sizeof(socketError);
 #ifdef _WIN32
-    if (getsockopt(sock, SOL_SOCKET, SO_ERROR, (char*)&socketError, &errorLen) == SOCKET_ERROR || socketError != 0)
+        if (getsockopt(clientSocket, SOL_SOCKET, SO_ERROR, (char*)&socketError, &len) == 0 && socketError == 0)
 #else
-    if (getsockopt(sock, SOL_SOCKET, SO_ERROR, &socketError, &errorLen) == -1 || socketError != 0)
+        if (getsockopt(clientSocket, SOL_SOCKET, SO_ERROR, &socketError, &len) == 0 && socketError == 0)
 #endif
-    {
-        CLOSE_SOCKET(sock);
-        return false;
+        {
+            // Connection successful!
+            mClientSocket = (void*)clientSocket;
+            mIsConnected = true;
+            ProcessNetworkMessages();
+            return true;
+        }
     }
     
-    mClientSocket = (void*)sock;
-    mIsConnected = true;
-    
-    // Wait for connection response
-    ProcessNetworkMessages();
-    
-    return true;
+    // Connection failed
+    CLOSE_SOCKET(clientSocket);
+    return false;
 }
 
 bool NetworkManager::ConnectToLocalhost(int thePort)

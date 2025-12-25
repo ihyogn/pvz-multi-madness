@@ -17,6 +17,7 @@ public:
 	Sexy::EditWidget*			mPortEditWidget;
 	Sexy::DialogButton*			mHostButton;
 	Sexy::DialogButton*			mConnectButton;
+	Sexy::DialogButton*			mShowIPButton;
 	
 public:
 	NetworkConnectionDialog(LawnApp* theApp);

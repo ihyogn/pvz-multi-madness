@@ -69,6 +69,7 @@ public:
     void StopHost();
     void UpdateHost();
     bool GetHostIPAddress(char* theBuffer, int theBufferSize);  // Get local IP for display
+    bool GetExternalIPAddress(char* theBuffer, int theBufferSize);  // Get external IP for internet play
     
     // Client functions
     bool ConnectToHost(const char* theHostIP, int thePort = 7777);
