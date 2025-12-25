@@ -24,10 +24,12 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <sys/select.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <string.h>
+#include <stdio.h>
 #define SOCKET_ERROR_CODE errno
 #define CLOSE_SOCKET close
 #define SOCKET_TYPE int
@@ -284,6 +286,23 @@ bool NetworkManager::ConnectToHost(const char* theHostIP, int thePort)
     if (sock == INVALID_SOCKET)
         return false;
     
+    // Set to non-blocking BEFORE connect (required for proper network connection handling)
+#ifdef _WIN32
+    u_long mode = 1;
+    if (ioctlsocket(sock, FIONBIO, &mode) == SOCKET_ERROR)
+    {
+        CLOSE_SOCKET(sock);
+        return false;
+    }
+#else
+    int flags = fcntl(sock, F_GETFL, 0);
+    if (fcntl(sock, F_SETFL, flags | O_NONBLOCK) == -1)
+    {
+        CLOSE_SOCKET(sock);
+        return false;
+    }
+#endif
+    
     sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -300,43 +319,100 @@ bool NetworkManager::ConnectToHost(const char* theHostIP, int thePort)
         addr.sin_addr.s_addr = inet_addr(theHostIP);
         if (addr.sin_addr.s_addr == INADDR_NONE)
         {
-            // If that failed, try hostname resolution
-            struct hostent* host = gethostbyname(theHostIP);
-            if (host == nullptr)
+            // If that failed, try hostname resolution using getaddrinfo for better network support
+            struct addrinfo hints;
+            struct addrinfo* result = nullptr;
+            memset(&hints, 0, sizeof(hints));
+            hints.ai_family = AF_INET;
+            hints.ai_socktype = SOCK_STREAM;
+            
+            char portStr[16];
+            sprintf(portStr, "%d", thePort);
+            
+            if (getaddrinfo(theHostIP, portStr, &hints, &result) == 0 && result != nullptr)
             {
-                CLOSE_SOCKET(sock);
-                return false;
+                // Use the first result
+                sockaddr_in* resolvedAddr = (sockaddr_in*)result->ai_addr;
+                addr.sin_addr = resolvedAddr->sin_addr;
+                freeaddrinfo(result);
             }
-            memcpy(&addr.sin_addr, host->h_addr_list[0], host->h_length);
+            else
+            {
+                // Fallback to deprecated gethostbyname for compatibility
+                struct hostent* host = gethostbyname(theHostIP);
+                if (host == nullptr || host->h_addr_list[0] == nullptr)
+                {
+                    CLOSE_SOCKET(sock);
+                    return false;
+                }
+                memcpy(&addr.sin_addr, host->h_addr_list[0], host->h_length);
+            }
         }
     }
     
-    if (connect(sock, (sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR)
+    // Attempt connection (will return immediately with non-blocking socket)
+    int connectResult = connect(sock, (sockaddr*)&addr, sizeof(addr));
+    
+#ifdef _WIN32
+    int error = WSAGetLastError();
+    if (connectResult == SOCKET_ERROR && error != WSAEWOULDBLOCK && error != WSAEINPROGRESS)
     {
-#ifdef _WIN32
-        int error = WSAGetLastError();
-        if (error != WSAEWOULDBLOCK && error != WSAEINPROGRESS)
-        {
-            CLOSE_SOCKET(sock);
-            return false;
-        }
+        CLOSE_SOCKET(sock);
+        return false;
+    }
 #else
-        if (errno != EINPROGRESS)
-        {
-            CLOSE_SOCKET(sock);
-            return false;
-        }
+    if (connectResult == SOCKET_ERROR && errno != EINPROGRESS)
+    {
+        CLOSE_SOCKET(sock);
+        return false;
+    }
 #endif
+    
+    // Wait for connection to complete using select() with timeout (5 seconds)
+    fd_set writeSet;
+    fd_set errorSet;
+    FD_ZERO(&writeSet);
+    FD_ZERO(&errorSet);
+    FD_SET(sock, &writeSet);
+    FD_SET(sock, &errorSet);
+    
+    struct timeval timeout;
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 0;
+    
+#ifdef _WIN32
+    int selectResult = select(0, nullptr, &writeSet, &errorSet, &timeout);
+#else
+    int selectResult = select(sock + 1, nullptr, &writeSet, &errorSet, &timeout);
+#endif
+    
+    if (selectResult <= 0)
+    {
+        // Timeout or error
+        CLOSE_SOCKET(sock);
+        return false;
     }
     
-    // Set to non-blocking
+    // Check if connection succeeded
+    if (FD_ISSET(sock, &errorSet))
+    {
+        // Connection error
+        CLOSE_SOCKET(sock);
+        return false;
+    }
+    
+    // Verify connection is actually established
+    int socketError = 0;
+    socklen_t errorLen = sizeof(socketError);
 #ifdef _WIN32
-    u_long mode = 1;
-    ioctlsocket(sock, FIONBIO, &mode);
+    if (getsockopt(sock, SOL_SOCKET, SO_ERROR, (char*)&socketError, &errorLen) == SOCKET_ERROR || socketError != 0)
 #else
-    int flags = fcntl(sock, F_GETFL, 0);
-    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+    if (getsockopt(sock, SOL_SOCKET, SO_ERROR, &socketError, &errorLen) == -1 || socketError != 0)
 #endif
+    {
+        CLOSE_SOCKET(sock);
+        return false;
+    }
     
     mClientSocket = (void*)sock;
     mIsConnected = true;
